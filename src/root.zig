@@ -9,6 +9,7 @@ vulk: vlk = vlk{},
 // Pass a pointer to the current instance to modify it
 pub fn initWindow(self: *@This()) !void {
     try glfw.init();
+    glfw.windowHint(.client_api, .no_api);
     self.window = try glfw.Window.create(800, 600, "BiFrost", null, null);
 }
 
@@ -21,7 +22,9 @@ pub fn deinitEngine(self: *@This()) void {
 pub fn initVulkan(self: *@This(), allocator: std.mem.Allocator) !void {
     const glfwExtensions = try glfw.getRequiredInstanceExtensions();
     try self.vulk.init(glfwExtensions, allocator);
+    try self.vulk.create_surface(self.window);
     try self.vulk.pick_physical_device(allocator);
+    try self.vulk.create_logical_device(allocator);
 }
 pub fn mainLoop(self: *@This()) !void {
     while (!glfw.windowShouldClose(self.window)) {
