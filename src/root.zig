@@ -1,10 +1,10 @@
 const glfw = @import("zglfw");
-const vlk = @import("vlk.zig");
+const Vlk = @import("vlk.zig");
 const std = @import("std");
 
 // Struct fields of this file
 window: *glfw.Window = undefined,
-vulk: vlk = vlk{},
+Vulk: Vlk = Vlk{},
 
 // Pass a pointer to the current instance to modify it
 pub fn initWindow(self: *@This()) !void {
@@ -13,18 +13,20 @@ pub fn initWindow(self: *@This()) !void {
     self.window = try glfw.Window.create(800, 600, "BiFrost", null, null);
 }
 
-pub fn deinitEngine(self: *@This()) void {
-    self.vulk.deinit();
+pub fn deinitEngine(self: *@This(), allocator: std.mem.Allocator) void {
+    self.Vulk.deinit(allocator);
     self.window.destroy();
     glfw.terminate();
 }
 
 pub fn initVulkan(self: *@This(), allocator: std.mem.Allocator) !void {
     const glfwExtensions = try glfw.getRequiredInstanceExtensions();
-    try self.vulk.init(glfwExtensions, allocator);
-    try self.vulk.create_surface(self.window);
-    try self.vulk.pick_physical_device(allocator);
-    try self.vulk.create_logical_device(allocator);
+    try self.Vulk.init(glfwExtensions, allocator);
+    try self.Vulk.createSurface(self.window);
+    try self.Vulk.pickPhysicalDevice(allocator);
+    try self.Vulk.createLogicalDevice(allocator);
+    try self.Vulk.createSwapChain(self.window, allocator);
+    try self.Vulk.createImageViews(allocator);
 }
 pub fn mainLoop(self: *@This()) !void {
     while (!glfw.windowShouldClose(self.window)) {
@@ -35,6 +37,6 @@ pub fn mainLoop(self: *@This()) !void {
 pub fn run(self: *@This(), allocator: std.mem.Allocator) !void {
     try self.initWindow();
     try self.initVulkan(allocator);
-    errdefer self.deinitEngine();
+    errdefer self.deinitEngine(allocator);
     try self.mainLoop();
 }
