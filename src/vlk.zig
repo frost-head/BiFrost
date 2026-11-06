@@ -23,9 +23,9 @@ const SwapChainSupportDetails = struct {
 const BaseWrapper = vk.BaseWrapper;
 const InstanceWrapper = vk.InstanceWrapper;
 const DeviceWrapper = vk.DeviceWrapper;
-const enable_vaildation = builtin.mode == .Debug;
+const enable_vaildation = builtin.mode == .debug;
 const validation_layer = [_][*:0]const u8{"VK_LAYER_KHRONOS_validation"};
-const device_extensions = [_][*:0]const u8{ vk.extensions.khr_portability_subset.name, vk.extensions.khr_swapchain.name };
+const device_extensions = [_][*:0]const u8{ vk.device_extensions.khr_portability_subset.name, vk.device_extensions.khr_swapchain.name };
 
 vkb: BaseWrapper = undefined,
 vki: InstanceWrapper = undefined,
@@ -61,14 +61,14 @@ pub fn init(self: *Self, extensions: [][*:0]const u8, allocator: std.mem.Allocat
     };
     var extension_list: std.ArrayList([*:0]const u8) = .empty;
     try extension_list.appendSlice(allocator, extensions);
-    try extension_list.append(allocator, vk.extensions.khr_portability_enumeration.name);
+    try extension_list.append(allocator, vk.instance_extensions.khr_portability_enumeration.name);
     defer extension_list.deinit(allocator);
 
     const create_info = vk.InstanceCreateInfo{
         .p_application_info = &app_info,
         .enabled_extension_count = @intCast(extension_list.items.len),
         .pp_enabled_extension_names = extension_list.items.ptr,
-        .flags = .{ .enumerate_portability_bit_khr = true },
+        .flags = .{ .enumerate_portability_khr = true },
         .enabled_layer_count = if (enable_vaildation) validation_layer.len else 0,
         .pp_enabled_layer_names = if (enable_vaildation) &validation_layer else null,
     };
@@ -133,19 +133,22 @@ pub fn pickPhysicalDevice(self: *Self, allocator: std.mem.Allocator) !void {
     _ = try self.vki.enumeratePhysicalDevices(self.instance, &device_count, available_devices.ptr);
 
     std.debug.print("following devices are available : {any}\n", .{available_devices});
-    var pDevice: vk.PhysicalDevice = undefined;
+    
+    var pDevice: ?vk.PhysicalDevice = null;
     for (available_devices[0..device_count]) |physicalDevice| {
         if (self.isDeviceSuitable(physicalDevice, allocator)) {
             pDevice = physicalDevice;
             break;
         }
     }
-    if (pDevice == vk.PhysicalDevice.null_handle) {
+    
+    const selected = pDevice orelse {
         std.debug.print("failed to find a suitable GPU!\n", .{});
         return error.NoSuitableGPUFound;
-    }
-    self.physical_device = pDevice;
-    std.debug.print("selected GPU : {}\n", .{pDevice});
+    };
+    
+    self.physical_device = selected;
+    std.debug.print("selected GPU : {*}\n", .{selected});
 }
 
 pub fn isDeviceSuitable(self: *Self, physical_device: vk.PhysicalDevice, allocator: std.mem.Allocator) bool {
@@ -216,7 +219,7 @@ pub fn findQueueFamilyIndices(self: *Self, physical_device: vk.PhysicalDevice, a
 fn getGraphicsQueueIndex(available_queues: []vk.QueueFamilyProperties, queueCount: u32) ?u32 {
     for (available_queues[0..queueCount], 0..) |*queue, ind| {
         const index: u32 = @intCast(ind);
-        if (queue.queue_flags.graphics_bit) return index;
+        if (queue.queue_flags.graphics) return index;
     }
     return null;
 }
@@ -331,11 +334,11 @@ pub fn createSwapChain(self: *Self, window: *glfw.Window, allocator: std.mem.All
         .present_mode = present_mode,
         .min_image_count = image_count,
         .image_array_layers = 1,
-        .image_usage = .{ .color_attachment_bit = true },
+        .image_usage = .{ .color_attachment = true },
         .pre_transform = swap_chain_support.capabilities.current_transform,
-        .composite_alpha = .{ .opaque_bit_khr = true },
+        .composite_alpha = .{ .opaque_khr = true },
         .clipped = vk.Bool32.true,
-        .old_swapchain = .null_handle,
+        .old_swapchain = .null,
         .image_sharing_mode = if (indices.graphics_family.? != indices.present_family.?) .concurrent else .exclusive,
         .queue_family_index_count = if (indices.graphics_family.? != indices.present_family.?) 2 else 0,
         .p_queue_family_indices = if (indices.graphics_family.? != indices.present_family.?) &queue_family_indices else null,
@@ -364,7 +367,7 @@ pub fn createImageViews(self: *Self, allocator: std.mem.Allocator) !void {
                 .b = .identity,
             },
             .subresource_range = .{
-                .aspect_mask = .{ .color_bit = true },
+                .aspect_mask = .{ .color = true },
                 .base_array_layer = 0,
                 .base_mip_level = 0,
                 .layer_count = 1,
